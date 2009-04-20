@@ -1,0 +1,3 @@
+# Yet Another XMPP Server
+
+TBW...
