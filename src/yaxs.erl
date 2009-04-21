@@ -1,8 +1,7 @@
 -module(yaxs).
--behaviour(application).
 -export([ 
-	  start/2, 
-	  stop/1
+	  start/0, 
+	  stop/0
 
 	  %% API
 %	  register_feature/1
@@ -10,11 +9,11 @@
 
 %-include("xmpp.hrl").
 
-start(_Type, _StartArgs) ->
-    yaxs_sup:start_link([]).
+start() ->
+    application:start(yaxs).
 
-stop(_State) ->
-    ok.
+stop() ->
+    application:stop(yaxs).
 
 
 %% API

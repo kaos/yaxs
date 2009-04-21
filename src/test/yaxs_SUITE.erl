@@ -46,14 +46,13 @@ suite() ->
 %% variable, but should NOT alter/remove any existing entries.
 %%--------------------------------------------------------------------
 init_per_suite(Config) ->
-    Config.
-%%     case application:start(yaxs) of
-%% 	ok ->
-%% 	    Config;
-
-%% 	Res ->
-%% 	    ct:fail( Res )
-%%     end.
+    case application:start(yaxs) of
+ 	ok ->
+ 	    Config;
+	
+ 	Res ->
+ 	    ct:fail( Res )
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: end_per_suite(Config0) -> void() | {save_config,Config1}
@@ -64,14 +63,13 @@ init_per_suite(Config) ->
 %% Description: Cleanup after the suite.
 %%--------------------------------------------------------------------
 end_per_suite(_Config) ->
-    ok.
-%%     case application:stop(yaxs) of
-%% 	ok ->
-%% 	    ok;
+    case application:stop(yaxs) of
+ 	ok ->
+ 	    ok;
 	
-%% 	Res ->
-%% 	    ct:fail( Res )
-%%     end.
+ 	Res ->
+ 	    ct:fail( Res )
+    end.
 
 %%--------------------------------------------------------------------
 %% Function: init_per_testcase(TestCase, Config0) ->
