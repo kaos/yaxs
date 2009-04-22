@@ -10,7 +10,7 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/0, set_socket/2]).
+-export([start_link/0, set_socket/2, sax_event/2]).
 
 %% gen_fsm callbacks
 -export([
@@ -23,13 +23,19 @@
 	]).
 
 %% FSM states
--export([wait_for_socket/2, wait_for_stream/2]).
+-export([
+	 wait_for_socket/2,
+	 wait_for_stream/2,
+	 streaming/2
+	]).
 
 -define(SERVER, ?MODULE).
 
+-include("yaxs.hrl").
+
 -record(state, {
-	  sock,
-	  addr
+	  sax,
+	  client = #yaxs_client{}
 	 }).
 
 %%====================================================================
@@ -47,6 +53,9 @@ start_link() ->
 set_socket(Pid, Sock) ->
     gen_fsm:send_event(Pid, {socket_ready, Sock}).
 
+sax_event(Pid, Event) ->
+    gen_fsm:send_event(Pid, {sax, Event}).
+
 %%====================================================================
 %% gen_fsm callbacks
 %%====================================================================
@@ -60,8 +69,7 @@ set_socket(Pid, Sock) ->
 %% initialize. 
 %%--------------------------------------------------------------------
 init([]) ->
-    process_flag(trap_exit, true),
-    {ok, wait_for_socket, #state{}}.
+    {ok, wait_for_socket, #state{ client=#yaxs_client{ pid=self() }}}.
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -75,20 +83,31 @@ init([]) ->
 %% the current state name StateName is called to handle the event. It is also 
 %% called if a timeout occurs. 
 %%--------------------------------------------------------------------
-wait_for_socket({socket_ready, Sock}, State) ->
+wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
     inet:setopts(Sock, [{active, once}]),
     {ok, {IP, Port}} = inet:peername(Sock),
     Addr = io_lib:format("~s:~p", [inet_parse:ntoa(IP), Port]),
-    error_logger:info_msg("New connection from: ~s", [Addr]),
+    error_logger:info_msg("Client connected: ~s", [Addr]),
+    
     {next_state, wait_for_stream,
      State#state{
-       sock = Sock,
-       addr = Addr
+       client = Client#yaxs_client{
+		  sock = Sock,
+		  addr = Addr
+		 }
       }
     }.
 
-wait_for_stream(_E, _S) ->
-    {next_state, foo, bar}.
+wait_for_stream({sax, {open_stream, _Attrs}=Event}, State) ->
+    yaxs_event:publish(Event, State#state.client),
+    {next_state, streaming, State}.
+
+streaming({sax, {open_stream, _Attrs}}, State) ->
+    {next_state, streaming, State};
+
+streaming({sax, close}, State) ->
+    {stop, normal, State}.
+
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -152,8 +171,24 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% other message than a synchronous or asynchronous event
 %% (or a system message).
 %%--------------------------------------------------------------------
-handle_info(_Info, StateName, State) ->
-    {next_state, StateName, State}.
+handle_info({tcp, Sock, Data}, StateName, State) ->
+    inet:setopts(Sock, [{active, once}]),
+    try
+	{next_state, StateName, 
+	 State#state{ sax =
+		     yaxs_sax:parse(Data, 
+				    fun sax_event/2,
+				    State#state.sax)
+		     }
+	}
+    catch
+	throw:Error ->
+	    {stop, {sax_error, Error}, State}
+    end;
+
+handle_info({tcp_closed, _Sock}, _StateName, State) ->
+    error_logger:info_msg("Client disconnected: ~s~n", [(State#state.client)#yaxs_client.addr]),
+    {stop, normal, #state{}}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, StateName, State) -> void()
@@ -163,8 +198,15 @@ handle_info(_Info, StateName, State) ->
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _StateName, State) ->
-    catch gen_tcp:close(State#state.sock),
-    ok.
+    error_logger:info_msg("Terminate yaxs_client in state ~p.~nReason: ~p~n", 
+			  [_StateName, _Reason]),
+    case (State#state.client)#yaxs_client.sock of
+	undefined ->
+	    ok;
+	Sock ->
+	    catch gen_tcp:close(Sock),
+	    ok
+    end.
 
 %%--------------------------------------------------------------------
 %% Function:

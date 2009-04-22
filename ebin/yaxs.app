@@ -4,8 +4,13 @@
    { vsn, "0.1" },
    { modules, [ yaxs, yaxs_app, yaxs_sup, yaxs_con, yaxs_client ]},
    { registered, [ yaxs_sup, yaxs_con, yaxs_client_sup ]},
-   { applications, [ kernel, stdlib, sasl ]},
+   { applications, [ kernel, stdlib, sasl, erlsom ]},
    { mod, { yaxs_app, []}},
-   { start_phases, []}
+   { start_phases, []},
+   { env, [
+	   {mods, [
+		   yaxs_core_stream
+		  ]}
+	  ]}
   ]
  }.

@@ -2,7 +2,7 @@
 #.PHONY: test
 
 all:
-	erl -make
+	erl -pa ebin -make
 
 test: all
 	cd test ; ./test.escript

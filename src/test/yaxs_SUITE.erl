@@ -10,7 +10,7 @@
 %% Note: This directive should only be used in test suites.
 -compile(export_all).
 
--include("ct.hrl").
+-include_lib("common_test/include/ct.hrl").
 
 %%--------------------------------------------------------------------
 %% COMMON TEST CALLBACK FUNCTIONS
@@ -49,7 +49,10 @@ init_per_suite(Config) ->
     case application:start(yaxs) of
  	ok ->
  	    Config;
-	
+
+	{error, {already_started, yaxs}} ->
+	    Config;
+
  	Res ->
  	    ct:fail( Res )
     end.
@@ -132,7 +135,11 @@ sequences() ->
 %% Description: Returns the list of test cases that are to be executed.
 %%--------------------------------------------------------------------
 all() -> 
-    [test_yaxs_started, test_server_socket].
+    [
+     test_yaxs_started, 
+     test_server_socket,
+     test_stream
+    ].
 
 
 %%--------------------------------------------------------------------
@@ -167,3 +174,16 @@ test_yaxs_started(_Config) ->
 test_server_socket(_Config) ->
     { ok, Sock } = gen_tcp:connect( "localhost", 5222, [binary] ),
     ok = gen_tcp:close( Sock ).
+
+test_stream(_Config) ->
+    {ok, Sock} = gen_tcp:connect("localhost", 5222, [list, {active, false}]),
+    ok = gen_tcp:send(Sock, "
+<?xml version='1.0'?>
+   <stream:stream
+       to='example.com'
+       xmlns='jabber:client'
+       xmlns:stream='http://etherx.jabber.org/streams'
+       version='1.0'>
+"),
+    {error, timeout} = gen_tcp:recv(Sock, 0, 500),
+    ok = gen_tcp:close(Sock).

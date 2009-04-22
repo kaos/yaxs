@@ -1,29 +1,32 @@
 %%%-------------------------------------------------------------------
-%%% File    : yaxs_con.erl
+%%% File    : yaxs_event.erl
 %%% Author  : Andreas Stenius <kaos@astekk.se>
 %%% Description : 
 %%%
-%%% Created : 21 Apr 2009 by Andreas Stenius <kaos@astekk.se>
+%%% Created : 22 Apr 2009 by Andreas Stenius <kaos@astekk.se>
 %%%-------------------------------------------------------------------
--module(yaxs_con).
+-module(yaxs_event).
 
 -behaviour(gen_server).
 
 %% API
--export([start_link/2]).
+-export([
+	 start_link/0,
+
+	 register/2,
+	 publish/2
+	]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--define(SERVER, ?MODULE).
-
 -record(state, {
-	  sock,
-	  accept,
-	  client
+%	  mods = [],
+	  events = []
 	 }).
 
+-define(SERVER, ?MODULE).
 
 %%====================================================================
 %% API
@@ -32,8 +35,16 @@
 %% Function: start_link() -> {ok,Pid} | ignore | {error,Error}
 %% Description: Starts the server
 %%--------------------------------------------------------------------
-start_link(Port, Module) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [Port, Module], []).
+start_link() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+register(Module, Events) ->
+    gen_server:cast(?SERVER, {register, Module, Events}).
+
+publish(Event, Client) ->
+    Mods = gen_server:call(?SERVER, {list_mods, element(1, Event)}),
+    [Mod:handle(Event, Client) || Mod <- Mods].
+
 
 %%====================================================================
 %% gen_server callbacks
@@ -46,22 +57,8 @@ start_link(Port, Module) ->
 %%                         {stop, Reason}
 %% Description: Initiates the server
 %%--------------------------------------------------------------------
-init([Port, Module]) ->
-    process_flag(trap_exit, true),
-    case gen_tcp:listen(Port, 
-			[list, 
-			 {active, false}, 
-			 {reuseaddr, true}
-			]) of
-	{ok, Sock} ->
-	    {ok, Ref} = prim_inet:async_accept(Sock, -1),
-	    {ok, #state{ sock=Sock,
-			 accept=Ref,
-			 client=Module
-			}};
-	{error, Reason} ->
-	    {stop, Reason}
-    end.
+init([]) ->
+    {ok, #state{}, 0}.
 
 %%--------------------------------------------------------------------
 %% Function: %% handle_call(Request, From, State) -> {reply, Reply, State} |
@@ -72,6 +69,10 @@ init([Port, Module]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call({list_mods, Event}, _From, #state{ events=Events } = State) ->
+    Mods = [Mod || {E, Mod} <- Events, E == Event],
+    {reply, Mods, State};
+
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -82,6 +83,10 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({register, Module, Events}, #state{ events=ModsEvents } = State ) ->
+    ModEvents = [{Event, Module} || Event <- Events],
+    {noreply, State#state{ events=ModsEvents++ModEvents }};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -91,36 +96,9 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
-handle_info({inet_async, Sock, _Ref, {ok, Client}}, State) ->
-    try
-	case set_sockopt(Sock, Client) of
-	    ok ->
-		ok;
-	    {error, Reason} ->
-		exit({set_sockopt, Reason})
-	end,
-	
-	{ok, Pid} = supervisor:start_child(yaxs_client_sup, []),
-	sys:trace(Pid, true),
-	gen_tcp:controlling_process(Client, Pid),
-	(State#state.client):set_socket(Pid, Client),
-	
-	case prim_inet:async_accept(Sock, -1) of
-	    {ok, NewRef} ->
-		{noreply, State#state{ accept=NewRef }};
-	    {error, Error} ->
-		exit({async_accept, inet:format_error(Error)})
-	end
-	
-    catch 
-	exit:Why ->
-	    error_logger:error_msg("Error in async accept: ~p.~n", [Why]),
-	    {stop, Why, State}
-    end;
-
-handle_info({inet_async, _Sock, _Ref, Error}, State) ->
-    error_logger:error_msg("Error in async accept: ~p.~n", [Error]),
-    {stop, Error, State};
+handle_info(timeout, State) ->
+    yaxs_mod:init(),
+    {noreply, State};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -132,8 +110,7 @@ handle_info(_Info, State) ->
 %% cleaning up. When it returns, the gen_server terminates with Reason.
 %% The return value is ignored.
 %%--------------------------------------------------------------------
-terminate(_Reason, State) ->
-    gen_tcp:close(State#state.sock),
+terminate(_Reason, _State) ->
     ok.
 
 %%--------------------------------------------------------------------
@@ -146,24 +123,3 @@ code_change(_OldVsn, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
-
-set_sockopt(Sock, Client) ->
-    true = inet_db:register_socket(Client, inet_tcp),
-    case prim_inet:getopts(Sock, [active, 
-				  nodelay,
-				  keepalive,
-				  delay_send,
-				  priority,
-				  tos]) of
-	{ok, Opts} ->
-	    case prim_inet:setopts(Client, Opts) of
-		ok ->
-		    ok;
-		Error ->
-		    gen_tcp:close(Client),
-		    Error
-	    end;
-	Error ->
-	    gen_tcp:close(Client),
-	    Error
-    end.
