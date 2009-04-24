@@ -50,9 +50,23 @@ parse(_, _, Sax) ->
 %%====================================================================
 
 %% stream tag
-sax_event({startElement, "http://etherx.jabber.org/streams", 
-	   "stream", "stream", Attrs}, Fun) ->
-    Fun({open_stream, Attrs}),
+
+%% sax_event({startElement, "http://etherx.jabber.org/streams", 
+%% 	   "stream", "stream", Attrs}, Fun) ->
+%%     Fun({open_stream, Attrs}),
+%%     Fun;
+
+%% sax_event({startElement, "urn:ietf:params:xlm:ns:xmpp-sasl", 
+%% 	   "auth", [], Attrs}, Fun) ->
+%%     Fun({auth}),
+%%     Fun;
+
+sax_event({startElement, Uri, Name, Prefix, Attrs}, Fun) ->
+    Fun({open, {Uri, Prefix, Name, Attrs}}),
+    Fun;
+
+sax_event({endElement, Uri, Name, Prefix}, Fun) ->
+    Fun({close, {Uri, Prefix, Name}}),
     Fun;
 
 sax_event(endDocument, Fun) ->
@@ -60,5 +74,6 @@ sax_event(endDocument, Fun) ->
     Fun;
 
 %% other
-sax_event(_Event, Fun) ->
+sax_event(Event, Fun) ->
+    Fun(Event),
     Fun.

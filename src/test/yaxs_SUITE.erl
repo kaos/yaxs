@@ -185,5 +185,29 @@ test_stream(_Config) ->
        xmlns:stream='http://etherx.jabber.org/streams'
        version='1.0'>
 "),
+
+%%     Expect = "\
+%% <?xml version='1.0'?>\
+%% <stream:stream\
+%%  from='example.com'\
+%%  id='someid'\
+%%  xmlns='jabber:client'\
+%%  xmlns:stream='http://etherx.jabber.org/streams'\
+%%  version='1.0'>",
+
+    {ok, Data} = gen_tcp:recv(Sock, 0, 1000),
+    ct:pal("Response:~n~s~n", [Data]),
+%%     case Data of
+%% 	Expect -> ok;
+%% 	Else -> ct:fail("Expected~n~p~n~nGot~n~p~n", [Expect, Data])
+%%     end,
+
+    ok = gen_tcp:send(Sock, "
+<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
+		     ),
+
+    {ok, Auth} = gen_tcp:recv(Sock, 0, 1000),
+    ct:pal("Auth Response:~n~s~n", [Auth]),
+
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).

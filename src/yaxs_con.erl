@@ -133,6 +133,8 @@ handle_info(_Info, State) ->
 %% The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, State) ->
+    error_logger:info_msg("Terminate yaxs_con.~nReason: ~p~n", 
+			  [_Reason]),
     gen_tcp:close(State#state.sock),
     ok.
 

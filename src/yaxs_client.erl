@@ -26,6 +26,7 @@
 -export([
 	 wait_for_socket/2,
 	 wait_for_stream/2,
+	 setup_stream/2,
 	 streaming/2
 	]).
 
@@ -35,7 +36,9 @@
 
 -record(state, {
 	  sax,
-	  client = #yaxs_client{}
+	  client = #yaxs_client{},
+	  response=[],
+	  open_tags=[]
 	 }).
 
 %%====================================================================
@@ -69,7 +72,15 @@ sax_event(Pid, Event) ->
 %% initialize. 
 %%--------------------------------------------------------------------
 init([]) ->
-    {ok, wait_for_socket, #state{ client=#yaxs_client{ pid=self() }}}.
+    Pid=self(),
+    {ok, wait_for_socket,
+     #state{ 
+	   client=#yaxs_client{ 
+	     pid=Pid,
+	     response=fun(Data) -> gen_fsm:send_all_state_event(Pid, {response, Data}) end
+	    }
+	  }
+    }.
 
 %%--------------------------------------------------------------------
 %% Function: 
@@ -87,7 +98,7 @@ wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
     inet:setopts(Sock, [{active, once}]),
     {ok, {IP, Port}} = inet:peername(Sock),
     Addr = io_lib:format("~s:~p", [inet_parse:ntoa(IP), Port]),
-    error_logger:info_msg("Client connected: ~s", [Addr]),
+    error_logger:info_msg("Client connected: ~s~n", [Addr]),
     
     {next_state, wait_for_stream,
      State#state{
@@ -98,16 +109,35 @@ wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
       }
     }.
 
-wait_for_stream({sax, {open_stream, _Attrs}=Event}, State) ->
-    yaxs_event:publish(Event, State#state.client),
-    {next_state, streaming, State}.
+wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams", 
+			      "stream", "stream", _}=Tag}}, State) ->
+    State1 = publish(Tag, State#state{ open_tags = [#tag{ tag=Tag }] }),
+    gen_fsm:send_all_state_event(self(), send_response),
+    {next_state, setup_stream, State1};
 
-streaming({sax, {open_stream, _Attrs}}, State) ->
-    {next_state, streaming, State};
+wait_for_stream({sax, _Event}, State) ->
+    {next_state, wait_for_stream, State}.
 
-streaming({sax, close}, State) ->
+setup_stream({sax, {open, Tag}}, #state{ open_tags = Tags } = State) ->
+    {next_state, setup_stream, 
+     State#state{ open_tags = [#tag{ tag=Tag }|Tags] }
+    };
+
+setup_stream({sax, {close, _Tag}}, #state{ open_tags = [OTag|Tags] } = State) ->
+    State1 = publish(OTag, State#state{ open_tags = Tags }),
+    gen_fsm:send_all_state_event(self(), send_response),
+    {next_state, setup_stream, State1};
+
+setup_stream({sax, close}, #state{ client=Client } = State) ->
+    gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
+    {stop, normal, State};
+
+setup_stream({sax, _Event}, State) ->
+    {next_state, setup_stream, State}.
+
+streaming({sax, close}, #state{ client=Client } = State) ->
+    gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
     {stop, normal, State}.
-
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -139,6 +169,13 @@ streaming({sax, close}, State) ->
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_event(send_response, StateName, #state{ response=Response, client=Client } = State) ->
+    gen_tcp:send(Client#yaxs_client.sock, lists:reverse(Response)),
+    {next_state, StateName, State#state{ response=[] }};
+
+handle_event({response, Data}, StateName, #state{ response=Response } = State) ->
+    {next_state, StateName, State#state{ response=[Data|Response] }};
+
 handle_event(_Event, StateName, State) ->
     {next_state, StateName, State}.
 
@@ -188,7 +225,7 @@ handle_info({tcp, Sock, Data}, StateName, State) ->
 
 handle_info({tcp_closed, _Sock}, _StateName, State) ->
     error_logger:info_msg("Client disconnected: ~s~n", [(State#state.client)#yaxs_client.addr]),
-    {stop, normal, #state{}}.
+    {stop, normal, State}.
 
 %%--------------------------------------------------------------------
 %% Function: terminate(Reason, StateName, State) -> void()
@@ -198,8 +235,8 @@ handle_info({tcp_closed, _Sock}, _StateName, State) ->
 %% Reason. The return value is ignored.
 %%--------------------------------------------------------------------
 terminate(_Reason, _StateName, State) ->
-    error_logger:info_msg("Terminate yaxs_client in state ~p.~nReason: ~p~n", 
-			  [_StateName, _Reason]),
+    error_logger:info_msg("Terminate yaxs_client in state ~p.~nReason: ~p~nState:~p~n", 
+			  [_StateName, _Reason, State]),
     case (State#state.client)#yaxs_client.sock of
 	undefined ->
 	    ok;
@@ -219,3 +256,7 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 %%% Internal functions
 %%--------------------------------------------------------------------
+
+publish(Event, #state{ client=#yaxs_client{ tags=Tags } = Client } = State) ->
+    NewTags = yaxs_event:publish(Event, Client),
+    State#state{ client = Client#yaxs_client{ tags=lists:flatten(NewTags) ++ Tags }}.

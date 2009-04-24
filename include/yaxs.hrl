@@ -9,5 +9,12 @@
 	  sock,
 	  addr,
 	  jid,
-	  tags=[]
+	  tags=[],
+	  response
 	 }).
+
+-record(tag, {
+	  tag,
+	  body=[]
+	 }).
+
