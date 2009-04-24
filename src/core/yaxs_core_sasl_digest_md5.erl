@@ -34,7 +34,9 @@ handle(sasl_mechanisms, #yaxs_client{ response=R } = _Client) ->
     R("<mechanism>DIGEST-MD5</mechanism>");
 handle({'SASL/DIGEST-MD5', _Tag}, 
        #yaxs_client{ response=R } = _Client) ->
-    R("challenge").
+    R("challenge"),
+    R(reset_stream),
+    {tag, {sasl, ok}}.
 
 
 %%====================================================================

@@ -77,7 +77,8 @@ init([]) ->
      #state{ 
 	   client=#yaxs_client{ 
 	     pid=Pid,
-	     response=fun(Data) -> gen_fsm:send_all_state_event(Pid, {response, Data}) end
+	     response=fun(reset_stream) -> gen_fsm:send_event(Pid, reset_stream);
+			 (Data) -> gen_fsm:send_all_state_event(Pid, {response, Data}) end
 	    }
 	  }
     }.
@@ -117,6 +118,9 @@ wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams",
 
 wait_for_stream({sax, _Event}, State) ->
     {next_state, wait_for_stream, State}.
+
+setup_stream(reset_stream, State) ->
+    {next_state, wait_for_stream, State#state{ sax=undefined, open_tags=[] }};
 
 setup_stream({sax, {open, Tag}}, #state{ open_tags = Tags } = State) ->
     {next_state, setup_stream, 

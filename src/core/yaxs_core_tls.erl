@@ -25,12 +25,27 @@
 %%--------------------------------------------------------------------
 
 init() ->
-    yaxs_mod:register(?MODULE, [stream_features]).
+    yaxs_mod:register(?MODULE, [
+				stream_features,
+				"urn:ietf:params:xml:ns:xmpp-tls"
+			       ]).
 
-handle(stream_features, #yaxs_client{ response=R } = _Client) ->
-    R("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'>"),
-    R("<required/>"),
-    R("</starttls>").
+handle(stream_features, 
+       #yaxs_client{ response=R, tags=Tags } = _Client) ->
+    case proplists:get_value(tls, Tags) of
+	ok ->
+	    ok;
+	_ ->
+	    R("<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'>"),
+	    R("<required/>"),
+	    R("</starttls>")
+    end;
+
+handle(#tag{ tag={"urn:ietf:params:xml:ns:xmpp-tls", "", "starttls", _} },
+      #yaxs_client{ response=R } = _Client) ->
+    R("<proceed xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"),
+    R(reset_stream),
+    {tag, {tls, ok}}.
 
 
 %%====================================================================

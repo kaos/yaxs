@@ -5,7 +5,7 @@
 %%%
 %%% Created : 22 Apr 2009 by Andreas Stenius <kaos@astekk.se>
 %%%-------------------------------------------------------------------
--module(yaxs_core_sasl).
+-module(yaxs_core_bind).
 
 -include("yaxs.hrl").
 
@@ -25,31 +25,16 @@
 %%--------------------------------------------------------------------
 
 init() ->
-    yaxs_mod:register(?MODULE, [
-				stream_features,
-				"urn:ietf:params:xml:ns:xmpp-sasl"
-			       ]).
+    yaxs_mod:register(?MODULE, [stream_features]).
 
-handle(stream_features,
-       #yaxs_client{ response=R, tags=Tags } = Client) ->
+handle(stream_features, 
+       #yaxs_client{ response=R, tags=Tags } = _Client) ->
     case proplists:get_value(sasl, Tags) of
 	ok ->
-	    ok;
+	    R("<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>");
 	_ ->
-	    R("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>"),
-	    NewTags = yaxs_event:publish(sasl_mechanisms, Client),
-	    R("</mechanisms>"),
-	    {tag, NewTags}
-    end;
-
-handle(#tag{ tag = {"urn:ietf:params:xml:ns:xmpp-sasl", 
-		    "", "auth", Attrs} } = Event, Client) ->
-    [Mechanism] = [list_to_atom(
-		     "SASL/" ++ Val) || {attribute, Key, _, _, Val} <- Attrs,
-					Key == "mechanism"],
-    Tags = yaxs_event:publish({Mechanism, Event}, Client),
-    {tag, [{mechanism, Mechanism}|Tags]}.
-
+	    ok
+    end.
 
 
 %%====================================================================
