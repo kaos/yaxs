@@ -127,8 +127,13 @@ wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams"=NS,
 wait_for_stream({sax, _Event}, State) ->
     {next_state, wait_for_stream, State}.
 
-setup_stream(reset_stream, State) ->
-    {next_state, wait_for_stream, State#state{ sax=undefined, open_tags=[] }};
+setup_stream(reset_stream, #state{ client=#yaxs_client{ tags=Tags }=Client } = State) ->
+    {next_state, wait_for_stream, 
+     State#state{ sax=undefined, 
+		  open_tags=[],
+		  client=Client#yaxs_client{ tags=proplists:delete(domain, Tags) }
+		 }
+    };
 
 setup_stream({sax, {open, {NS, P, N, A}}}, #state{ open_tags = Tags } = State) ->
     {next_state, setup_stream, 

@@ -1,13 +1,14 @@
 -module(yaxs).
 -export([ 
 	  start/0, 
-	  stop/0
+	  stop/0,
 
-	  %% API
-%	  register_feature/1
+	  get_attr/2,
+	  get_attr/3
+
 	 ]).
 
-%-include("xmpp.hrl").
+-include("yaxs.hrl").
 
 start() ->
     application:start(yaxs).
@@ -15,19 +16,12 @@ start() ->
 stop() ->
     application:stop(yaxs).
 
-
-%% API
-
-%% register_feature(F) when is_record(F, feature) ->
-%%     xmpp_core_stream_feature:register(F);
-%% register_feature(F) ->
-%%     register_feature(
-%%       #feature{ states = proplists:get_value(
-%% 			   states, F, [bound]),
-%% 		module = proplists:get_value(
-%% 			   module, F),
-%% 		namespace = proplists:get_value(
-%% 			      namespace, F, 'jabber:client')
-%% 	       }).
-
+get_attr(Key, Attrs) -> get_attr(Key, Attrs, undefined).
+get_attr(Key, Attrs, Default) ->
+    case [V || #attribute{ name=K, value=V } <- Attrs, K == Key] of
+	[Val] ->
+	    Val;
+	_ ->
+	    Default
+    end.
 

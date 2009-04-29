@@ -36,7 +36,7 @@ handle({'SASL/DIGEST-MD5', _Tag},
        #yaxs_client{ response=R } = _Client) ->
     R("challenge"),
     R(reset_stream),
-    {tag, {sasl, ok}}.
+    {tag, [{sasl, ok}, {user, "foo"}]}.
 
 
 %%====================================================================

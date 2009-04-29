@@ -16,6 +16,8 @@
 	 handle/2
 	]).
 
+-import(yaxs, [get_attr/2, get_attr/3]).
+
 %%====================================================================
 %% API
 %%====================================================================
@@ -30,14 +32,28 @@ init() ->
 			       ]).
 
 handle(#tag{ namespace = "jabber:client",
-	     name = Type, 
-%	     attrs = Attrs,
+	     name = Kind, 
+	     attrs = Attrs,
 	     body = Body },
        #yaxs_client{ response=_R } = Client) ->
-    
-    yaxs_event:publish(#stanza{ type=Type, body=Body}, Client).
+
+    Stanza = #stanza{ kind = Kind,
+		      type = get_attr("type", Attrs),
+		      to = get_attr("to", Attrs, local),
+		      from = get_attr("from", Attrs),
+		      id = get_attr("id", Attrs),
+		      xml_lang = get_attr("xml:lang", Attrs),
+		      body = Body },
+
+    case Stanza#stanza.to of
+	local ->
+	    yaxs_event:publish(Stanza, Client);
+	_ ->
+	    yaxs_core:route_stanza(Stanza, Client)
+    end.
 
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+

@@ -46,7 +46,8 @@ handle(#tag{ attrs=Attrs },
     Res = yaxs_event:publish(stream_features, Client),
 
     R("</stream:features>"),
-    Res.
+    [{tag, {domain, yaxs:get_attr("to", Attrs)}}
+     |Res].
 
 
 %%====================================================================

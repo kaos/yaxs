@@ -29,6 +29,7 @@
 	 }).
 
 -record(stanza, {
+	  kind,
 	  type,
 	  to,
 	  from,

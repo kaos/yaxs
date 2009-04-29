@@ -43,7 +43,7 @@ handle(#tag{ name="bind", body=Body },
        #yaxs_client{ response=_R, tags=Tags } = Client ) ->
     case proplists:get_value(bind, Tags) of
 	undefined ->
-	    bind_to_resource(Body, Client);
+	    bind_resource(Body, Client);
 	Res ->
 	    {tag, {already_bound, Res}}
     end.
@@ -53,10 +53,22 @@ handle(#tag{ name="bind", body=Body },
 %% Internal functions
 %%====================================================================
 
-bind_to_resource([#tag{ name="resource", 
+bind_resource([#tag{ name="resource", 
 			body=[Resource] }],
-		 _Client) ->
-    {tag, {bind, Resource}};
-bind_to_resource(_, _Client) ->
-    {tag, {bind, "generated-resource-name"}}.
+		 Client) ->
+    do_bind_resource(Resource, Client);
+bind_resource(_, Client) ->
+    do_bind_resource("generated-resource-name", Client).
+
+do_bind_resource(Resource, #yaxs_client{ tags = Tags }) ->
+    yaxs_core:new_session(
+      io_lib:format("~s@~s/~s", 
+		    [
+		     proplists:get_value(user, Tags),
+		     proplists:get_value(domain, Tags),
+		     Resource
+		    ])
+     ),
+    
+    {tag, {bind, Resource}}.
 
