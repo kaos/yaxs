@@ -41,8 +41,8 @@ handle(stream_features,
 	    R("</starttls>")
     end;
 
-handle(#tag{ tag={"urn:ietf:params:xml:ns:xmpp-tls", "", "starttls", _} },
-      #yaxs_client{ response=R } = _Client) ->
+handle(#tag{ name="starttls" },
+       #yaxs_client{ response=R } = _Client) ->
     R("<proceed xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"),
     R(reset_stream),
     {tag, {tls, ok}}.

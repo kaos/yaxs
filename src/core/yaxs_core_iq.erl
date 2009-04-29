@@ -1,11 +1,11 @@
 %%%-------------------------------------------------------------------
-%%% File    : yaxs_core_stream.erl
+%%% File    : yaxs_core_jabberclient.erl
 %%% Author  : Andreas Stenius <kaos@astekk.se>
 %%% Description : 
 %%%
-%%% Created : 22 Apr 2009 by Andreas Stenius <kaos@astekk.se>
+%%% Created : 27 Apr 2009 by Andreas Stenius <kaos@astekk.se>
 %%%-------------------------------------------------------------------
--module(yaxs_core_bind).
+-module(yaxs_core_iq).
 
 -include("yaxs.hrl").
 
@@ -14,7 +14,7 @@
 -export([
 	 init/0,
 	 handle/2
-]).
+	]).
 
 %%====================================================================
 %% API
@@ -26,23 +26,13 @@
 
 init() ->
     yaxs_mod:register(?MODULE, [
-				stream_features,
-				"urn:ietf:params:xml:ns:xmpp-bind"
+				"iq"
 			       ]).
 
-handle(stream_features, 
-       #yaxs_client{ response=R, tags=Tags } = _Client) ->
-    case proplists:get_value(sasl, Tags) of
-	ok ->
-	    R("<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>");
-	_ ->
-	    ok
-    end;
-
-handle(#tag{ name="bind" },
-       #yaxs_client{ response=_R } = _Client ) ->
+handle(#stanza{ body=[Tag] },
+       #yaxs_client{ response=_R } = Client) ->
     
-    {tag, {bind, was_here}}.
+    yaxs_event:publish(Tag, Client).
 
 
 %%====================================================================

@@ -14,7 +14,7 @@
 -export([
 	 init/0,
 	 handle/2
-]).
+	]).
 
 %%====================================================================
 %% API
@@ -42,13 +42,12 @@ handle(stream_features,
 	    {tag, NewTags}
     end;
 
-handle(#tag{ tag = {"urn:ietf:params:xml:ns:xmpp-sasl", 
-		    "", "auth", Attrs} } = Event, Client) ->
+handle(#tag{ name="auth", attrs=Attrs } = Event, Client) ->
     [Mechanism] = [list_to_atom(
 		     "SASL/" ++ Val) || {attribute, Key, _, _, Val} <- Attrs,
 					Key == "mechanism"],
-    Tags = yaxs_event:publish({Mechanism, Event}, Client),
-    {tag, [{mechanism, Mechanism}|Tags]}.
+    Res = yaxs_event:publish({Mechanism, Event}, Client),
+    [{tag, {mechanism, Mechanism}}|Res].
 
 
 

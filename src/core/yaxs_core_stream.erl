@@ -29,7 +29,7 @@ init() ->
 				"http://etherx.jabber.org/streams"
 			       ]).
 
-handle({"http://etherx.jabber.org/streams", "stream", "stream", Attrs},
+handle(#tag{ attrs=Attrs },
        #yaxs_client{ response=R } = Client) ->
     error_logger:info_msg("core open_stream: ~p~n", [Attrs]),
     R("\
@@ -43,10 +43,10 @@ handle({"http://etherx.jabber.org/streams", "stream", "stream", Attrs},
 
  <stream:features>"),
 
-    Tags = yaxs_event:publish(stream_features, Client),
+    Res = yaxs_event:publish(stream_features, Client),
 
     R("</stream:features>"),
-    {tag, Tags}.
+    Res.
 
 
 %%====================================================================

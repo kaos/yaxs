@@ -195,6 +195,18 @@ test_stream(_Config) ->
 
     open_stream(Sock, "authenticated (fake)"),
 
+    ok = gen_tcp:send(Sock, "
+<iq type='set' id='bind_2'>
+  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
+    <resource>someresource</resource>
+  </bind>
+</iq>
+"),
+%% <iq type='set' id='bind_1'>
+%%   <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>
+%% </iq>
+%% "),
+    
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).
 

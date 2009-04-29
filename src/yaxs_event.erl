@@ -14,7 +14,8 @@
 	 start_link/0,
 
 	 register/2,
-	 publish/2
+	 publish/2,
+	 publish/3
 	]).
 
 %% gen_server callbacks
@@ -43,14 +44,16 @@ start_link() ->
 register(Module, Events) ->
     gen_server:cast(?SERVER, {register, Module, Events}).
 
-publish(Event, Client) when is_record(Event, tag) ->
-    Mods = list_mods(element(1, Event#tag.tag)),
-    do_publish(Event, Client, Mods);
+publish(Event, Client) when is_record(Event, tag); is_record(Event, stanza) ->
+    publish(Event, 2, Client);
 publish(Event, Client) when is_tuple(Event) ->
-    Mods = list_mods(element(1, Event)),
-    do_publish(Event, Client, Mods);
-publish(Event, Client) when is_atom(Event) ->
+    publish(Event, 1, Client);
+publish(Event, Client) ->
     Mods = list_mods(Event),
+    do_publish(Event, Client, Mods).
+
+publish(Event, Elem, Client) when is_tuple(Event), is_integer(Elem) ->
+    Mods = list_mods(element(Elem, Event)),
     do_publish(Event, Client, Mods).
 
 
@@ -139,10 +142,7 @@ list_mods(Event) ->
 
 do_publish(Event, Client, Mods) ->
     error_logger:info_msg("do publish:~nEvent:~p~nClient:~p~nMods:~p~n", [Event, Client, Mods]),
-    [element(2, Tag) || Tag <- lists:flatten(
-				 [Mod:handle(Event, Client) || Mod <- Mods]
-				),
-			is_tuple(Tag),
-			tuple_size(Tag) == 2,
-			element(1, Tag) == tag
-			   ].
+    lists:flatten(
+      [Mod:handle(Event, Client) || Mod <- Mods]
+     ).
+

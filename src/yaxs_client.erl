@@ -110,9 +110,17 @@ wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
       }
     }.
 
-wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams", 
-			      "stream", "stream", _}=Tag}}, State) ->
-    State1 = publish(Tag, State#state{ open_tags = [#tag{ tag=Tag }] }),
+wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams"=NS, 
+			      "stream"=P, "stream"=N, Attrs}
+		      }
+		}, State) ->
+
+    Tag = #tag{ namespace=NS,
+		prefix=P,
+		name=N,
+		attrs=Attrs },
+
+    State1 = publish(Tag, State#state{ open_tags = [Tag] }),
     gen_fsm:send_all_state_event(self(), send_response),
     {next_state, setup_stream, State1};
 
@@ -122,15 +130,26 @@ wait_for_stream({sax, _Event}, State) ->
 setup_stream(reset_stream, State) ->
     {next_state, wait_for_stream, State#state{ sax=undefined, open_tags=[] }};
 
-setup_stream({sax, {open, Tag}}, #state{ open_tags = Tags } = State) ->
+setup_stream({sax, {open, {NS, P, N, A}}}, #state{ open_tags = Tags } = State) ->
     {next_state, setup_stream, 
-     State#state{ open_tags = [#tag{ tag=Tag }|Tags] }
+     State#state{ open_tags = [#tag{ namespace=NS, prefix=P, name=N, attrs=A }
+			       |Tags] }
     };
 
 setup_stream({sax, {close, _Tag}}, #state{ open_tags = [OTag|Tags] } = State) ->
-    State1 = publish(OTag, State#state{ open_tags = Tags }),
-    gen_fsm:send_all_state_event(self(), send_response),
+    State1 = case Tags of
+		 [] -> State;
+		 [_] ->
+		     S1 = publish(OTag, State#state{ open_tags = Tags }),
+		     gen_fsm:send_all_state_event(self(), send_response),
+		     S1;
+		 [#tag{ body=B } = Parent|T] ->
+		     State#state{ open_tags = [Parent#tag{ body = B ++ [OTag] }|T] }
+	     end,
     {next_state, setup_stream, State1};
+
+setup_stream({sax, {characters, Data}}, #state{ open_tags = [#tag{ body=B } = C|T] } = State) ->
+    {next_state, setup_stream, State#state{ open_tags = [C#tag{ body = B ++ [Data] }|T] }};
 
 setup_stream({sax, close}, #state{ client=Client } = State) ->
     gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
@@ -262,5 +281,9 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%--------------------------------------------------------------------
 
 publish(Event, #state{ client=#yaxs_client{ tags=Tags } = Client } = State) ->
-    NewTags = yaxs_event:publish(Event, Client),
+    NewTags = [element(2, Tag) || Tag <- yaxs_event:publish(Event, Client),
+				  is_tuple(Tag),
+				  tuple_size(Tag) == 2,
+				  element(1, Tag) == tag
+				     ],
     State#state{ client = Client#yaxs_client{ tags=lists:flatten(NewTags) ++ Tags }}.

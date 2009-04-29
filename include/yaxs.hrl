@@ -14,7 +14,18 @@
 	 }).
 
 -record(tag, {
-	  tag,
+	  namespace,
+	  prefix,
+	  name,
+	  attrs=[],
 	  body=[]
 	 }).
 
+-record(stanza, {
+	  type,
+	  to,
+	  from,
+	  id,
+	  xml_lang,
+	  body=[]
+	 }).
