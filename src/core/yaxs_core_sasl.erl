@@ -37,15 +37,15 @@ handle(stream_features,
 	    ok;
 	_ ->
 	    R("<mechanisms xmlns='urn:ietf:params:xml:ns:xmpp-sasl'>"),
-	    NewTags = yaxs_event:publish(sasl_mechanisms, Client),
+	    Res = yaxs_event:publish(sasl_mechanisms, Client),
 	    R("</mechanisms>"),
-	    {tag, NewTags}
+	    Res
     end;
 
 handle(#tag{ name="auth", attrs=Attrs } = Event, Client) ->
-    [Mechanism] = [list_to_atom(
-		     "SASL/" ++ Val) || {attribute, Key, _, _, Val} <- Attrs,
-					Key == "mechanism"],
+    [Mechanism] = [list_to_atom("SASL/" ++ Val)
+		   || #attribute{ name=Key, value=Val } <- Attrs,
+		      Key == "mechanism"],
     Res = yaxs_event:publish({Mechanism, Event}, Client),
     [{tag, {mechanism, Mechanism}}|Res].
 

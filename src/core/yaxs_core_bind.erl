@@ -39,12 +39,24 @@ handle(stream_features,
 	    ok
     end;
 
-handle(#tag{ name="bind" },
-       #yaxs_client{ response=_R } = _Client ) ->
-    
-    {tag, {bind, was_here}}.
+handle(#tag{ name="bind", body=Body },
+       #yaxs_client{ response=_R, tags=Tags } = Client ) ->
+    case proplists:get_value(bind, Tags) of
+	undefined ->
+	    bind_to_resource(Body, Client);
+	Res ->
+	    {tag, {already_bound, Res}}
+    end.
 
 
 %%====================================================================
 %% Internal functions
 %%====================================================================
+
+bind_to_resource([#tag{ name="resource", 
+			body=[Resource] }],
+		 _Client) ->
+    {tag, {bind, Resource}};
+bind_to_resource(_, _Client) ->
+    {tag, {bind, "generated-resource-name"}}.
+

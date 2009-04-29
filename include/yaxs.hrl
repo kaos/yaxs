@@ -21,6 +21,13 @@
 	  body=[]
 	 }).
 
+-record(attribute, {
+	  name,
+	  prefix,
+	  uri,
+	  value
+	 }).
+
 -record(stanza, {
 	  type,
 	  to,

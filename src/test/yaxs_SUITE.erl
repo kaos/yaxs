@@ -179,34 +179,25 @@ test_stream(_Config) ->
     {ok, Sock} = gen_tcp:connect("localhost", 5222, [list, {active, false}]),
     open_stream(Sock, "initial"),
 
-    ok = gen_tcp:send(Sock, "
-<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"
-		      ),
+    ok = gen_tcp:send(Sock, 
+		      "<starttls xmlns='urn:ietf:params:xml:ns:xmpp-tls'/>"
+		     ),
     {ok, Tls} = gen_tcp:recv(Sock, 0, 1000),
     ct:pal("TLS Response:~n~s~n", [Tls]),
 
     open_stream(Sock, "secured (fake)"),
 
-    ok = gen_tcp:send(Sock, "
-<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
+    ok = gen_tcp:send(Sock,
+		      "<auth xmlns='urn:ietf:params:xml:ns:xmpp-sasl' mechanism='DIGEST-MD5'/>"
 		     ),
     {ok, Auth} = gen_tcp:recv(Sock, 0, 1000),
     ct:pal("Auth Response:~n~s~n", [Auth]),
 
     open_stream(Sock, "authenticated (fake)"),
 
-    ok = gen_tcp:send(Sock, "
-<iq type='set' id='bind_2'>
-  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
-    <resource>someresource</resource>
-  </bind>
-</iq>
-"),
-%% <iq type='set' id='bind_1'>
-%%   <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>
-%% </iq>
-%% "),
-    
+    bind(Sock, 2),
+    bind(Sock, 1),
+
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).
 
@@ -215,14 +206,30 @@ test_stream(_Config) ->
 
 %% Utils
 
+bind(Sock, 1) ->
+    ok = gen_tcp:send(Sock, 
+		      "<iq type='set' id='bind_1'>
+  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>
+</iq>"
+		     );
+bind(Sock, 2) ->
+    ok = gen_tcp:send(Sock, 
+		      "<iq type='set' id='bind_2'>
+  <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>
+    <resource>someresource</resource>
+  </bind>
+</iq>"
+		     ).
+
 open_stream(Sock, Comment) ->
-    ok = gen_tcp:send(Sock, "
-<?xml version='1.0'?>
-   <stream:stream
-       to='example.com'
-       xmlns='jabber:client'
-       xmlns:stream='http://etherx.jabber.org/streams'
-       version='1.0'>
-"),
+    ok = gen_tcp:send(
+	   Sock, 
+	   "<?xml version='1.0'?>
+	<stream:stream
+		to='example.com'
+		xmlns='jabber:client'
+		xmlns:stream='http://etherx.jabber.org/streams'
+		version='1.0'>"
+		     ),
     {ok, Data} = gen_tcp:recv(Sock, 0, 1000),
     ct:pal("Response{~s}:~n~s~n", [Comment, Data]).
