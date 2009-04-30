@@ -78,6 +78,13 @@ init([?SERVER, Port, Module]) ->
 	 2000,
 	 worker,
 	 [yaxs_event]
+	},
+	{core,
+	 {yaxs_core, start_link, []},
+	 permanent,
+	 2000,
+	 worker,
+	 [yaxs_core]
 	}
        ]
       }

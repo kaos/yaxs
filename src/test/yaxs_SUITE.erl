@@ -196,7 +196,11 @@ test_stream(_Config) ->
     open_stream(Sock, "authenticated (fake)"),
 
     bind(Sock, 2),
-    bind(Sock, 1),
+%    bind(Sock, 1),
+
+    gen_tcp:recv(Sock, 0, 100),
+
+    ok = gen_tcp:send(Sock,"<message to='foo@example.com'><body>bar</body></message>"),
 
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).

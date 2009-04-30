@@ -14,14 +14,22 @@
 	 start_link/0,
 
 	 new_session/1,
-	 route_stanza/2
+	 route_stanza/1
 	]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
 	 terminate/2, code_change/3]).
 
--record(state, {}).
+-record(session, {
+	  pid,
+	  ref,
+	  jid
+	 }).
+
+-record(state, {
+	  sessions = []
+	 }).
 
 -define(SERVER, ?MODULE).
 
@@ -36,12 +44,10 @@ start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 new_session(Jid) ->
-    error_logger:info_msg("new_session: ~s~n", [Jid]),
-    ok.
+    gen_server:cast(?SERVER, #session{ pid=self(), jid=Jid }).
 
-route_stanza(Stanza, _Client) ->
-    error_logger:info_msg("route_stanza: ~p~n", [Stanza]),
-    ok.
+route_stanza(Stanza) ->
+    gen_server:cast(?SERVER, {route, Stanza}).
 
 %%====================================================================
 %% gen_server callbacks
@@ -76,6 +82,24 @@ handle_call(_Request, _From, State) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling cast messages
 %%--------------------------------------------------------------------
+handle_cast({route, Stanza}, State) ->
+    error_logger:info_msg("route_stanza: ~p~n", [Stanza]),
+    {noreply, State};
+
+handle_cast(#session{ pid=Pid } = Session, 
+	    #state{ sessions=Sessions } = State) ->
+    error_logger:info_msg("new_session: ~p~n", [Session]),
+    {noreply, State#state{
+		sessions=
+		[
+		 Session#session{
+		   ref=erlang:monitor(
+			 process,
+			 Pid)
+		  }
+		 |Sessions]
+	       }};
+
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -85,6 +109,18 @@ handle_cast(_Msg, State) ->
 %%                                       {stop, Reason, State}
 %% Description: Handling all non call/cast messages
 %%--------------------------------------------------------------------
+handle_info({'DOWN', Ref, process, _Pid, _Reason},
+	    #state{ sessions=Sessions } = State) ->
+    State1 = case lists:keytake(Ref, #session.ref, Sessions) of
+		 {value, Session, S1} ->
+		     error_logger:info_msg("End session: ~p~nReason: ~p~n", 
+					   [Session, _Reason]),
+		     S1;
+		 false ->
+		     State
+	     end,
+    {noreply, State1};
+
 handle_info(_Info, State) ->
     {noreply, State}.
 

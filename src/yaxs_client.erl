@@ -78,6 +78,7 @@ init([]) ->
 	   client=#yaxs_client{ 
 	     pid=Pid,
 	     response=fun(reset_stream) -> gen_fsm:send_event(Pid, reset_stream);
+			 ({jid, _}=Jid) -> gen_fsm:send_event(Pid, Jid);
 			 (Data) -> gen_fsm:send_all_state_event(Pid, {response, Data}) end
 	    }
 	  }
@@ -121,11 +122,19 @@ wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams"=NS,
 		attrs=Attrs },
 
     State1 = publish(Tag, State#state{ open_tags = [Tag] }),
-    gen_fsm:send_all_state_event(self(), send_response),
     {next_state, setup_stream, State1};
 
 wait_for_stream({sax, _Event}, State) ->
     {next_state, wait_for_stream, State}.
+
+setup_stream({jid, Jid}, #state{ client=Client } = State) ->
+    {next_state, setup_stream,
+     State#state{ 
+       client=Client#yaxs_client{ 
+		jid=Jid 
+	       } 
+      }
+    };
 
 setup_stream(reset_stream, #state{ client=#yaxs_client{ tags=Tags }=Client } = State) ->
     {next_state, wait_for_stream, 
@@ -145,9 +154,7 @@ setup_stream({sax, {close, _Tag}}, #state{ open_tags = [OTag|Tags] } = State) ->
     State1 = case Tags of
 		 [] -> State;
 		 [_] ->
-		     S1 = publish(OTag, State#state{ open_tags = Tags }),
-		     gen_fsm:send_all_state_event(self(), send_response),
-		     S1;
+		     publish(OTag, State#state{ open_tags = Tags });
 		 [#tag{ body=B } = Parent|T] ->
 		     State#state{ open_tags = [Parent#tag{ body = B ++ [OTag] }|T] }
 	     end,
@@ -197,6 +204,23 @@ streaming({sax, close}, #state{ client=Client } = State) ->
 %% gen_fsm:send_all_state_event/2, this function is called to handle
 %% the event.
 %%--------------------------------------------------------------------
+handle_event({data, Data},
+	     StateName,
+	     #state{ client=#yaxs_client{ sock=Sock } } = State) ->
+    inet:setopts(Sock, [{active, once}]),
+    try
+	{next_state, StateName, 
+	 State#state{ sax =
+		     yaxs_sax:parse(Data, 
+				    fun sax_event/2,
+				    State#state.sax)
+		     }
+	}
+    catch
+	throw:Error ->
+	    {stop, {sax_error, Error}, State}
+    end;
+    
 handle_event(send_response, StateName, #state{ response=Response, client=Client } = State) ->
     gen_tcp:send(Client#yaxs_client.sock, lists:reverse(Response)),
     {next_state, StateName, State#state{ response=[] }};
@@ -236,20 +260,9 @@ handle_sync_event(_Event, _From, StateName, State) ->
 %% other message than a synchronous or asynchronous event
 %% (or a system message).
 %%--------------------------------------------------------------------
-handle_info({tcp, Sock, Data}, StateName, State) ->
-    inet:setopts(Sock, [{active, once}]),
-    try
-	{next_state, StateName, 
-	 State#state{ sax =
-		     yaxs_sax:parse(Data, 
-				    fun sax_event/2,
-				    State#state.sax)
-		     }
-	}
-    catch
-	throw:Error ->
-	    {stop, {sax_error, Error}, State}
-    end;
+handle_info({tcp, _Sock, Data}, StateName, State) ->
+    gen_fsm:send_all_state_event(self(), {data, Data}),
+    {next_state, StateName, State};
 
 handle_info({tcp_closed, _Sock}, _StateName, State) ->
     error_logger:info_msg("Client disconnected: ~s~n", [(State#state.client)#yaxs_client.addr]),
@@ -291,4 +304,5 @@ publish(Event, #state{ client=#yaxs_client{ tags=Tags } = Client } = State) ->
 				  tuple_size(Tag) == 2,
 				  element(1, Tag) == tag
 				     ],
+    gen_fsm:send_all_state_event(self(), send_response),
     State#state{ client = Client#yaxs_client{ tags=lists:flatten(NewTags) ++ Tags }}.

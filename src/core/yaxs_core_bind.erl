@@ -60,15 +60,19 @@ bind_resource([#tag{ name="resource",
 bind_resource(_, Client) ->
     do_bind_resource("generated-resource-name", Client).
 
-do_bind_resource(Resource, #yaxs_client{ tags = Tags }) ->
-    yaxs_core:new_session(
-      io_lib:format("~s@~s/~s", 
-		    [
-		     proplists:get_value(user, Tags),
-		     proplists:get_value(domain, Tags),
-		     Resource
-		    ])
-     ),
-    
+do_bind_resource(Resource, 
+		 #yaxs_client{ tags=Tags,
+			       response=R }) ->
+    Jid = lists:flatten(
+	    io_lib:format("~s@~s/~s", 
+			  [
+			   proplists:get_value(user, Tags),
+			   proplists:get_value(domain, Tags),
+			   Resource
+			  ])
+	   ),
+
+    R({jid, Jid}),
+    yaxs_core:new_session(Jid),
     {tag, {bind, Resource}}.
 

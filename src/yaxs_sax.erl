@@ -73,7 +73,11 @@ sax_event(endDocument, Fun) ->
     Fun(close),
     Fun;
 
+sax_event({characters, _}=Event, Fun) ->
+    Fun(Event),
+    Fun;
+
 %% other
 sax_event(Event, Fun) ->
-    Fun(Event),
+%    Fun(Event),
     Fun.
