@@ -44,8 +44,8 @@ handle(#tag{ name="bind", body=Body },
     case proplists:get_value(bind, Tags) of
 	undefined ->
 	    bind_resource(Body, Client);
-	Res ->
-	    {tag, {already_bound, Res}}
+	_ ->
+	    {error, conflict}
     end.
 
 
@@ -72,7 +72,18 @@ do_bind_resource(Resource,
 			  ])
 	   ),
 
-    R({jid, Jid}),
-    yaxs_core:new_session(Jid),
-    {tag, {bind, Resource}}.
-
+    case yaxs_core:new_session(Jid) of
+	ok ->
+	    R({jid, Jid}),
+	    [
+	     {tag, {bind, Resource}},
+	     {result, io_lib:format(
+			"<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>"
+			"<jid>~s</jid>"
+			"</bind>",
+			[Jid]
+		       )}
+	    ];
+	Error ->
+	    Error
+    end.

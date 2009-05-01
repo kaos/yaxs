@@ -44,7 +44,7 @@ start_link() ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 new_session(Jid) ->
-    gen_server:cast(?SERVER, #session{ pid=self(), jid=Jid }).
+    gen_server:call(?SERVER, #session{ pid=self(), jid=Jid }).
 
 route_stanza(Stanza) ->
     gen_server:cast(?SERVER, {route, Stanza}).
@@ -72,6 +72,27 @@ init([]) ->
 %%                                      {stop, Reason, State}
 %% Description: Handling call messages
 %%--------------------------------------------------------------------
+handle_call(#session{ pid=Pid } = Session,
+	    _From,
+	    #state{ sessions=Sessions } = State) ->
+
+    error_logger:info_msg("new_session: ~p~n", [Session]),
+    State1 = State#state{
+	       sessions=
+	       [
+		Session#session{
+		  ref=erlang:monitor(
+			process,
+			Pid)
+		 }
+		|Sessions]
+	      },
+
+    % May want to return a {error, error-type} here...
+    %Res = {error, conflict},
+    Res = ok,
+    {reply, Res, State1};
+
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -85,20 +106,6 @@ handle_call(_Request, _From, State) ->
 handle_cast({route, Stanza}, State) ->
     error_logger:info_msg("route_stanza: ~p~n", [Stanza]),
     {noreply, State};
-
-handle_cast(#session{ pid=Pid } = Session, 
-	    #state{ sessions=Sessions } = State) ->
-    error_logger:info_msg("new_session: ~p~n", [Session]),
-    {noreply, State#state{
-		sessions=
-		[
-		 Session#session{
-		   ref=erlang:monitor(
-			 process,
-			 Pid)
-		  }
-		 |Sessions]
-	       }};
 
 handle_cast(_Msg, State) ->
     {noreply, State}.

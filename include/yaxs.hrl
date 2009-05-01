@@ -18,7 +18,8 @@
 	  prefix,
 	  name,
 	  attrs=[],
-	  body=[]
+	  body=[],
+	  data=[]
 	 }).
 
 -record(attribute, {

@@ -101,7 +101,7 @@ handle_info({inet_async, Sock, _Ref, {ok, Client}}, State) ->
 	end,
 	
 	{ok, Pid} = supervisor:start_child(yaxs_client_sup, []),
-	sys:trace(Pid, true),
+	%sys:trace(Pid, true),
 	gen_tcp:controlling_process(Client, Pid),
 	(State#state.client):set_socket(Pid, Client),
 	

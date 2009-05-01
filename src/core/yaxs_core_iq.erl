@@ -29,10 +29,26 @@ init() ->
 				"iq"
 			       ]).
 
-handle(#stanza{ body=[Tag] },
-       #yaxs_client{ response=_R } = Client) ->
+handle(#stanza{ id=Id, body=[Tag] },
+       #yaxs_client{ response=R } = Client) ->
     
-    yaxs_event:publish(Tag, Client).
+    PubRes = yaxs_event:publish(Tag, Client),
+    IqRes = [Res || Res <- PubRes,
+		    is_tuple(Res),
+		    tuple_size(Res) == 2,
+		    element(1, Res) == result 
+			orelse element(1, Res) == error
+		     ],
+    [{Type, Res}] = IqRes,
+
+    R(io_lib:format(
+	"<iq type='~s' id='~s'>"
+	"~s"
+	"</iq>",
+	[Type, Id, Res]
+       )
+     ),
+    PubRes -- IqRes.
 
 
 %%====================================================================

@@ -114,14 +114,15 @@ wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
 wait_for_stream({sax, {open, {"http://etherx.jabber.org/streams"=NS, 
 			      "stream"=P, "stream"=N, Attrs}
 		      }
-		}, State) ->
+		}, 
+		#state{ open_tags = [Tag] } = State) ->
 
-    Tag = #tag{ namespace=NS,
-		prefix=P,
-		name=N,
-		attrs=Attrs },
-
-    State1 = publish(Tag, State#state{ open_tags = [Tag] }),
+    Tag1 = Tag#tag{ namespace=NS,
+		    prefix=P,
+		    name=N,
+		    attrs=Attrs },
+    
+    State1 = publish(Tag1, State#state{ open_tags = [Tag1] }),
     {next_state, setup_stream, State1};
 
 wait_for_stream({sax, _Event}, State) ->
@@ -144,11 +145,16 @@ setup_stream(reset_stream, #state{ client=#yaxs_client{ tags=Tags }=Client } = S
 		 }
     };
 
-setup_stream({sax, {open, {NS, P, N, A}}}, #state{ open_tags = Tags } = State) ->
-    {next_state, setup_stream, 
-     State#state{ open_tags = [#tag{ namespace=NS, prefix=P, name=N, attrs=A }
-			       |Tags] }
-    };
+setup_stream({sax, {open, {NS, P, N, A}}}, #state{ open_tags = [Tag|Tags] } = State) ->
+    Tags1 = case Tag#tag.name of
+		undefined ->
+		    [Tag#tag{ namespace=NS, prefix=P, name=N, attrs=A }
+		     |Tags];
+		_ ->
+		    [#tag{ namespace=NS, prefix=P, name=N, attrs=A },
+		     Tag | Tags]
+	    end,
+    {next_state, setup_stream, State#state{ open_tags = Tags1 }};
 
 setup_stream({sax, {close, _Tag}}, #state{ open_tags = [OTag|Tags] } = State) ->
     State1 = case Tags of
@@ -206,15 +212,20 @@ streaming({sax, close}, #state{ client=Client } = State) ->
 %%--------------------------------------------------------------------
 handle_event({data, Data},
 	     StateName,
-	     #state{ client=#yaxs_client{ sock=Sock } } = State) ->
+	     #state{ 
+	       client = #yaxs_client{ sock=Sock },
+	       open_tags = Tags
+	      } = State) ->
+    
     inet:setopts(Sock, [{active, once}]),
     try
 	{next_state, StateName, 
-	 State#state{ sax =
-		     yaxs_sax:parse(Data, 
-				    fun sax_event/2,
-				    State#state.sax)
-		     }
+	 State#state{ 
+	   sax = yaxs_sax:parse(Data, 
+				fun sax_event/2,
+				State#state.sax),
+	   open_tags = [#tag{ data=Data }|Tags]
+	  }
 	}
     catch
 	throw:Error ->

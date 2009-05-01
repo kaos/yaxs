@@ -141,10 +141,10 @@ list_mods(Event) ->
     gen_server:call(?SERVER, {list_mods, Event}).
 
 do_publish(Event, Client, Mods) ->
-    error_logger:info_msg("do publish:~nEvent:~p~nClient:~p~nMods:~p~n", [Event, Client, Mods]),
+    %error_logger:info_msg("do publish:~nEvent:~p~nClient:~p~nMods:~p~n", [Event, Client, Mods]),
     Res = lists:flatten(
       [Mod:handle(Event, Client) || Mod <- Mods]
      ),
-    error_logger:info_msg("publish result: ~p~nMods: ~p~n", [Res, Mods]),
+    %error_logger:info_msg("publish result: ~p~nMods: ~p~n", [Res, Mods]),
     Res.
 

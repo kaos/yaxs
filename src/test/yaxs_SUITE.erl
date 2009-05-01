@@ -195,12 +195,12 @@ test_stream(_Config) ->
 
     open_stream(Sock, "authenticated (fake)"),
 
-    bind(Sock, 2),
-%    bind(Sock, 1),
+    ok = bind(Sock, 2),
+    ok = bind(Sock, 1),
 
-    gen_tcp:recv(Sock, 0, 100),
 
     ok = gen_tcp:send(Sock,"<message to='foo@example.com'><body>bar</body></message>"),
+    timeout = wait_for_response(Sock, "message"),
 
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).
@@ -215,7 +215,9 @@ bind(Sock, 1) ->
 		      "<iq type='set' id='bind_1'>
   <bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'/>
 </iq>"
-		     );
+		     ),
+    wait_for_response(Sock, "bind:1");
+
 bind(Sock, 2) ->
     ok = gen_tcp:send(Sock, 
 		      "<iq type='set' id='bind_2'>
@@ -223,7 +225,8 @@ bind(Sock, 2) ->
     <resource>someresource</resource>
   </bind>
 </iq>"
-		     ).
+		     ),
+    wait_for_response(Sock, "bind:2").
 
 open_stream(Sock, Comment) ->
     ok = gen_tcp:send(
@@ -235,5 +238,14 @@ open_stream(Sock, Comment) ->
 		xmlns:stream='http://etherx.jabber.org/streams'
 		version='1.0'>"
 		     ),
-    {ok, Data} = gen_tcp:recv(Sock, 0, 1000),
-    ct:pal("Response{~s}:~n~s~n", [Comment, Data]).
+    wait_for_response(Sock, Comment).
+
+wait_for_response(Sock, Comment) ->
+    case gen_tcp:recv(Sock, 0, 1000) of
+	{ok, Data} ->
+	    ct:pal("Response{~s}:~n~s~n", [Comment, Data]),
+	    ok;
+	{error, Why} ->
+	    ct:pal("No Response{~s}:~s~n", [Comment, Why]),
+	    Why
+    end.
