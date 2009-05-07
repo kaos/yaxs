@@ -63,25 +63,22 @@ bind_resource(_, Client) ->
 do_bind_resource(Resource, 
 		 #yaxs_client{ tags=Tags,
 			       response=R }) ->
-    Jid = lists:flatten(
-	    io_lib:format("~s@~s/~s", 
-			  [
-			   proplists:get_value(user, Tags),
-			   proplists:get_value(domain, Tags),
-			   Resource
-			  ])
-	   ),
-
-    case yaxs_core:new_session(Jid) of
+    Jid = #jid{
+      node=proplists:get_value(user, Tags),
+      domain=proplists:get_value(domain, Tags),
+      resource=Resource
+     },
+    
+    case yaxs_core:new_session(Jid, R) of
 	ok ->
 	    R({jid, Jid}),
 	    [
 	     {tag, {bind, Resource}},
 	     {result, io_lib:format(
 			"<bind xmlns='urn:ietf:params:xml:ns:xmpp-bind'>"
-			"<jid>~s</jid>"
+			"<jid>~s@~s/~s</jid>"
 			"</bind>",
-			[Jid]
+			[Jid#jid.node, Jid#jid.domain, Jid#jid.resource]
 		       )}
 	    ];
 	Error ->

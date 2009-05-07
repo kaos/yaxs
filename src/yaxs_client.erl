@@ -78,6 +78,7 @@ init([]) ->
 	   client=#yaxs_client{ 
 	     pid=Pid,
 	     response=fun(reset_stream) -> gen_fsm:send_event(Pid, reset_stream);
+			 ({route, _}=Stanza) -> gen_fsm:send_event(Pid, Stanza);
 			 ({jid, _}=Jid) -> gen_fsm:send_event(Pid, Jid);
 			 (Data) -> gen_fsm:send_all_state_event(Pid, {response, Data}) end
 	    }
@@ -136,6 +137,10 @@ setup_stream({jid, Jid}, #state{ client=Client } = State) ->
 	       } 
       }
     };
+
+setup_stream({route, #stanza{ xml = Data }}, #state{ client=#yaxs_client{ sock=S } } = State ) ->
+    gen_tcp:send(S, Data),
+    {next_state, setup_stream, State};
 
 setup_stream(reset_stream, #state{ client=#yaxs_client{ tags=Tags }=Client } = State) ->
     {next_state, wait_for_stream, 

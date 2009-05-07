@@ -34,7 +34,8 @@ init() ->
 handle(#tag{ namespace = "jabber:client",
 	     name = Kind, 
 	     attrs = Attrs,
-	     body = Body },
+	     body = Body, 
+	     data = Data },
        #yaxs_client{ jid=Jid, response=_R } = Client) ->
 
     Stanza = #stanza{ kind = Kind,
@@ -43,13 +44,15 @@ handle(#tag{ namespace = "jabber:client",
 		      from = get_attr("from", Attrs, Jid),
 		      id = get_attr("id", Attrs),
 		      xml_lang = get_attr("xml:lang", Attrs),
-		      body = Body },
+		      body = Body,
+		      xml = Data
+		     },
 
     case Stanza#stanza.to of
 	local ->
 	    yaxs_event:publish(Stanza, Client);
-	_ ->
-	    yaxs_core:route_stanza(Stanza)
+	To ->
+	    yaxs_core:route_stanza(Stanza#stanza{ to=yaxs:to_jid(To) })
     end.
 
 

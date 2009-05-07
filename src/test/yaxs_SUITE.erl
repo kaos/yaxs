@@ -199,8 +199,8 @@ test_stream(_Config) ->
     ok = bind(Sock, 1),
 
 
-    ok = gen_tcp:send(Sock,"<message to='foo@example.com'><body>bar</body></message>"),
-    timeout = wait_for_response(Sock, "message"),
+    ok = gen_tcp:send(Sock,"<message to='foo@example.com/someresource'><body>bar</body></message>"),
+    ok = wait_for_response(Sock, "message"),
 
     {error, timeout} = gen_tcp:recv(Sock, 0, 500),
     ok = gen_tcp:close(Sock).

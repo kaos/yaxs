@@ -36,5 +36,12 @@
 	  from,
 	  id,
 	  xml_lang,
-	  body=[]
+	  body,
+	  xml
+	 }).
+
+-record(jid, {
+	  node,
+	  domain,
+	  resource
 	 }).
