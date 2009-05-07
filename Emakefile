@@ -1,10 +1,10 @@
 %% -*- erlang -*-
 
-{'src/*', [
-	   {i, "include"},
-	   {outdir, 'ebin'},
-	   debug_info
-	  ]
+{'src/yaxs/*', [
+		{i, "include"},
+		{outdir, 'ebin'},
+		debug_info
+	       ]
 }.
 
 {'src/core/*', [
