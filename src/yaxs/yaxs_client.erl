@@ -27,7 +27,8 @@
 	 wait_for_socket/2,
 	 wait_for_stream/2,
 	 setup_stream/2,
-	 streaming/2
+	 streaming/2,
+	 stopped/2
 	]).
 
 -define(SERVER, ?MODULE).
@@ -98,7 +99,7 @@ init([]) ->
 %% called if a timeout occurs. 
 %%--------------------------------------------------------------------
 wait_for_socket({socket_ready, Sock}, #state{ client=Client} = State) ->
-    inet:setopts(Sock, [{active, once}]),
+    ok = inet:setopts(Sock, [{active, once}]),
     {ok, {IP, Port}} = inet:peername(Sock),
     Addr = io_lib:format("~s:~p", [inet_parse:ntoa(IP), Port]),
     error_logger:info_msg("Client connected: ~s~n", [Addr]),
@@ -175,15 +176,21 @@ setup_stream({sax, {characters, Data}}, #state{ open_tags = [#tag{ body=B } = C|
     {next_state, setup_stream, State#state{ open_tags = [C#tag{ body = B ++ [Data] }|T] }};
 
 setup_stream({sax, close}, #state{ client=Client } = State) ->
-    gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
-    {stop, normal, State};
+    ok = gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
+    {next_state, stopped, State, 100};
 
 setup_stream({sax, _Event}, State) ->
     {next_state, setup_stream, State}.
 
 streaming({sax, close}, #state{ client=Client } = State) ->
-    gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
-    {stop, normal, State}.
+    ok = gen_tcp:send(Client#yaxs_client.sock, "</stream:stream>"),
+    {next_state, stopped, State, 100}.
+
+stopped(timeout, State) ->
+    {stop, normal, State};
+stopped(_, State) ->
+    {next_state, stopped, State, 100}.
+
 
 %%--------------------------------------------------------------------
 %% Function:
@@ -236,7 +243,11 @@ handle_event({data, Data},
 	throw:Error ->
 	    {stop, {sax_error, Error}, State}
     end;
+
     
+handle_event(_, stopped, State) ->
+    {next_state, stopped, State, 100};
+
 handle_event(send_response, StateName, #state{ response=Response, client=Client } = State) ->
     gen_tcp:send(Client#yaxs_client.sock, lists:reverse(Response)),
     {next_state, StateName, State#state{ response=[] }};

@@ -139,7 +139,8 @@ sequences() ->
 all() -> 
     [
      'core-5.3-stream-attrs',
-     'core-5.4-stream-features'
+     'core-5.5-stream-features',
+     'core-5.7-stream-close'
     ].
 
 
@@ -199,7 +200,7 @@ all() ->
 	   ),
     ok = gen_tcp:close(Sock).
 
-'core-5.4-stream-features'(Config) -> 
+'core-5.5-stream-features'(Config) -> 
     {ok, Sock} = gen_tcp:connect("localhost", 5222, [list, {active, false}]),
     {ok,{"{http://etherx.jabber.org/streams}stream",
 	 _Attrs,
@@ -221,6 +222,15 @@ all() ->
 	    ++ "</stream:stream>"
 	   ),
     ok = gen_tcp:close(Sock).
+
+'core-5.7-stream-close'(Config) ->
+    {ok, Sock} = gen_tcp:connect("localhost", 5222, [list, {active, false}]),
+    send(Sock, open_stream()),
+    %{ok, "</stream:stream>"} = 
+    What = send(Sock, "</stream:stream>"),
+    ct:log("Got what: ~p~n", [What]),
+    {error, closed} = gen_tcp:recv(Sock, 0, 1000),
+    gen_tcp:close(Sock).
 
 
 %% Utils

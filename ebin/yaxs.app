@@ -13,7 +13,9 @@
 		   yaxs_event, yaxs_core
 		  ]},
    { applications, [ 
-		     kernel, stdlib, sasl, erlsom 
+		     kernel, stdlib, 
+		     sasl, erlsom,
+		     gen_listener_tcp
 		    ]},
    { mod, { yaxs_app, []}},
    { start_phases, []},
